@@ -2,34 +2,15 @@ pipeline {
   agent { label 'linux-agent' }
 
   environment {
-    IMAGE = "your-dockerhub-username/final_project"
-    GIT_CRED = 'github-ssh'      // or 'github-https'
+    IMAGE = "saks786/final_project"
     DOCKER_CRED = 'dockerhub-creds'
   }
 
   stages {
-    stage('Prepare') {
-      steps {
-        deleteDir()                  // clean workspace
-        sh 'whoami; uname -a; java -version'
-      }
-    }
-
     stage('Checkout') {
       steps {
         git branch: 'main',
-            url: 'https://github.com/saks786/final_project.git',  // or https URL
-            credentialsId: "${GIT_CRED}"
-      }
-    }
-
-    stage('Build & Test') {
-      steps {
-        sh '''
-          python3 -m pip install --user -r requirements.txt || true
-          # run simple syntax check or tests
-          python3 -m py_compile app.py
-        '''
+            url: 'https://github.com/saks786/final_project.git'
       }
     }
 
@@ -58,15 +39,6 @@ pipeline {
           docker run -d --restart always --name final_project -p 8080:8080 $IMAGE:${BUILD_NUMBER}
         '''
       }
-    }
-  }
-
-  post {
-    success {
-      echo "Deployment successful: ${IMAGE}:${BUILD_NUMBER}"
-    }
-    failure {
-      echo "Pipeline failed."
     }
   }
 }
