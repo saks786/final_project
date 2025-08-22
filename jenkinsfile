@@ -1,0 +1,72 @@
+pipeline {
+  agent { label 'linux-agent' }
+
+  environment {
+    IMAGE = "your-dockerhub-username/final_project"
+    GIT_CRED = 'github-ssh'      // or 'github-https'
+    DOCKER_CRED = 'dockerhub-creds'
+  }
+
+  stages {
+    stage('Prepare') {
+      steps {
+        deleteDir()                  // clean workspace
+        sh 'whoami; uname -a; java -version'
+      }
+    }
+
+    stage('Checkout') {
+      steps {
+        git branch: 'main',
+            url: 'git@github.com:your-username/final_project.git',  // or https URL
+            credentialsId: "${GIT_CRED}"
+      }
+    }
+
+    stage('Build & Test') {
+      steps {
+        sh '''
+          python3 -m pip install --user -r requirements.txt || true
+          # run simple syntax check or tests
+          python3 -m py_compile app.py
+        '''
+      }
+    }
+
+    stage('Build Docker Image') {
+      steps {
+        sh 'docker build -t $IMAGE:${BUILD_NUMBER} .'
+      }
+    }
+
+    stage('Push to DockerHub') {
+      steps {
+        withCredentials([usernamePassword(credentialsId: "${DOCKER_CRED}", usernameVariable: 'DH_USER', passwordVariable: 'DH_PASS')]) {
+          sh '''
+            echo "$DH_PASS" | docker login -u "$DH_USER" --password-stdin
+            docker push $IMAGE:${BUILD_NUMBER}
+          '''
+        }
+      }
+    }
+
+    stage('Deploy') {
+      steps {
+        sh '''
+          docker stop final_project || true
+          docker rm final_project || true
+          docker run -d --restart always --name final_project -p 8080:8080 $IMAGE:${BUILD_NUMBER}
+        '''
+      }
+    }
+  }
+
+  post {
+    success {
+      echo "Deployment successful: ${IMAGE}:${BUILD_NUMBER}"
+    }
+    failure {
+      echo "Pipeline failed."
+    }
+  }
+}
